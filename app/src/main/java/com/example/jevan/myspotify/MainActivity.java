@@ -3,38 +3,55 @@ package com.example.jevan.myspotify;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
-import android.view.View;
-import android.widget.Button;
 
-import com.jakewharton.rxbinding.view.RxView;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.spotify.sdk.android.authentication.AuthenticationClient;
 import com.spotify.sdk.android.authentication.AuthenticationRequest;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
 import com.spotify.sdk.android.player.Config;
 import com.spotify.sdk.android.player.ConnectionStateCallback;
-import com.spotify.sdk.android.player.PlayConfig;
 import com.spotify.sdk.android.player.Player;
 import com.spotify.sdk.android.player.PlayerNotificationCallback;
 import com.spotify.sdk.android.player.PlayerState;
 import com.spotify.sdk.android.player.Spotify;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class MainActivity extends Activity implements
-        PlayerNotificationCallback, ConnectionStateCallback {
-    // UI Elements
-    Button playButton, pauseButton;
+        PlayerNotificationCallback,
+        ConnectionStateCallback,
+        TrackAdapter.PlayerCallBack {
+
+    // Recycler
+    private RecyclerView trackRecyclerView;
+    private TrackAdapter mAdapter;
+
     // Spotify
     private Player mPlayer;
-    private PlayConfig mPlayConfig;
+    private String mAccessToken;
 
-    // Client ID
+    // Spotify constants
     private static final String CLIENT_ID = "4cc42aa0dceb42c99e24cb940131f3a0";
-    // Redirect URI
     private static final String REDIRECT_URI = "jevans-myspotify-login://callback";
-    // Request code that will be used to verify if the result comes from correct activity
-    // Can be any integer
+    private static final String MY_TRACKS_URL = "https://api.spotify.com/v1/me/tracks";
+
+    // Request code for activity result
     private static final int REQUEST_CODE = 80085;
 
+    // Log tag
     private static final String TAG = MainActivity.class.getSimpleName();
 
     @Override
@@ -42,30 +59,17 @@ public class MainActivity extends Activity implements
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        playButton = (Button) findViewById(R.id.button_main_play);
-        pauseButton = (Button) findViewById(R.id.button_main_pause);
+        // Recycler
+        trackRecyclerView = (RecyclerView) findViewById(R.id.track_recycler_view);
+        trackRecyclerView.setHasFixedSize(true);
+        trackRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        // Define button click observables
-        RxView.clicks(pauseButton).subscribe(o -> {
-            Log.d(TAG, "Pause pressed");
-            if (mPlayer != null) {
-                mPlayer.pause();
-            }
-        });
-        RxView.clicks(playButton).subscribe(o -> {
-            Log.d(TAG, "Play pressed");
-            if (mPlayer != null) {
-                mPlayer.resume();
-            }
-        });
-
-
+        // Start spotify auth intent
         AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(CLIENT_ID,
                 AuthenticationResponse.Type.TOKEN,
                 REDIRECT_URI);
-        builder.setScopes(new String[]{"user-read-private", "streaming"});
+        builder.setScopes(new String[]{"user-read-private", "streaming", "user-library-read"});
         AuthenticationRequest request = builder.build();
-
         AuthenticationClient.openLoginActivity(this, REQUEST_CODE, request);
     }
 
@@ -77,15 +81,14 @@ public class MainActivity extends Activity implements
         if (requestCode == REQUEST_CODE) {
             AuthenticationResponse response = AuthenticationClient.getResponse(resultCode, intent);
             if (response.getType() == AuthenticationResponse.Type.TOKEN) {
-                Config config = new Config(this, response.getAccessToken(), CLIENT_ID);
+                mAccessToken = response.getAccessToken();
+                Config config = new Config(this, mAccessToken, CLIENT_ID);
                 Spotify.getPlayer(config, this, new Player.InitializationObserver() {
                     @Override
                     public void onInitialized(Player player) {
                         mPlayer = player;
                         mPlayer.addConnectionStateCallback(MainActivity.this);
                         mPlayer.addPlayerNotificationCallback(MainActivity.this);
-                        mPlayConfig = PlayConfig.createFor("spotify:track:2TpxZ7JUBn3uw46aR7qd6V");
-                        mPlayer.play(mPlayConfig);
                     }
 
                     @Override
@@ -95,6 +98,48 @@ public class MainActivity extends Activity implements
                 });
             }
         }
+        RequestQueue requestQueue = Volley.newRequestQueue(this);
+        JSONObject params = new JSONObject();
+        Map<String, String> header = new HashMap<>();
+        header.put("Authorization", "Bearer " + mAccessToken);
+        JsonObjectRequest request = new JsonObjectRequest(
+                Request.Method.GET,
+                MY_TRACKS_URL+"?limit=50",
+                params,
+                json -> {
+                    List<SpotifyTrack> tracks = new ArrayList<>();
+                    int numSongs = 0;
+                    try {
+                        JSONArray songs = json.getJSONArray("items");
+                        numSongs = songs.length();
+                        for (int i = 0; i < numSongs; i++) {
+                            // Get the json for this song object
+                            JSONObject song = songs
+                                    .getJSONObject(i)
+                                    .getJSONObject("track");
+                            // Add the SpotifyTrack object
+                            tracks.add(json2Track(song));
+                        }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "JSON ERROR");
+                    } finally {
+                        // Set the adapter for the recycler view
+                        // using the list of songs in the result
+                        mAdapter = new TrackAdapter(
+                                this,
+                                tracks.toArray(new SpotifyTrack[numSongs]));
+                        trackRecyclerView.setAdapter(mAdapter);
+                    }
+
+                },
+                error -> Log.e(TAG, "" + error.toString())
+        ) {
+            @Override
+            public Map<String, String> getHeaders() {
+                return header;
+            }
+        };
+        requestQueue.add(request);
     }
 
     @Override
@@ -136,5 +181,47 @@ public class MainActivity extends Activity implements
     protected void onDestroy() {
         Spotify.destroyPlayer(this);
         super.onDestroy();
+    }
+
+    @Override
+    public void pauseSong() {
+        mPlayer.pause();
+    }
+
+    @Override
+    public void playSong(String uri) {
+        mPlayer.play(uri);
+    }
+
+    private static SpotifyTrack json2Track(JSONObject song) {
+        SpotifyTrack result = new SpotifyTrack();
+        try {
+            String title = song
+                    .getString("name");
+            JSONObject artistObj = song
+                    .getJSONArray("artists")
+                    .getJSONObject(0);
+            String artist = artistObj
+                    .getString("name");
+            String uri = song
+                    .getString("uri");
+            String imageUrl = song
+                    .getJSONObject("album")
+                    .getJSONArray("images")
+                    .getJSONObject(0)
+                    .getString("url");
+            int popularity = song
+                    .getInt("popularity");
+            result.setTitle(title);
+            result.setArtist(artist);
+            result.setUri(uri);
+            result.setImageURL(imageUrl);
+            result.setPopularity(popularity);
+            return result;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error loading song\n" + e.getMessage());
+            return null;
+        }
+
     }
 }
