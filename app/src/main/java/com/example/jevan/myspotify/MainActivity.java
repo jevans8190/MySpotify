@@ -16,7 +16,6 @@ import com.spotify.sdk.android.authentication.AuthenticationRequest;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
 import com.spotify.sdk.android.player.Config;
 import com.spotify.sdk.android.player.ConnectionStateCallback;
-import com.spotify.sdk.android.player.PlayConfig;
 import com.spotify.sdk.android.player.Player;
 import com.spotify.sdk.android.player.PlayerNotificationCallback;
 import com.spotify.sdk.android.player.PlayerState;
@@ -27,29 +26,27 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends Activity implements
-        PlayerNotificationCallback, ConnectionStateCallback {
+        PlayerNotificationCallback,
+        ConnectionStateCallback,
+        TrackAdapter.PlayerCallBack {
 
     // Recycler
     private RecyclerView trackRecyclerView;
-    private RecyclerView.LayoutManager mLayoutManager;
     private TrackAdapter mAdapter;
 
     // Spotify
     private Player mPlayer;
-    private PlayConfig mPlayConfig;
     private String mAccessToken;
 
     // Spotify constants
     private static final String CLIENT_ID = "4cc42aa0dceb42c99e24cb940131f3a0";
     private static final String REDIRECT_URI = "jevans-myspotify-login://callback";
     private static final String MY_TRACKS_URL = "https://api.spotify.com/v1/me/tracks";
-    private static final String MY_TRACKS_PARAMS = "limit=10";
 
     // Request code for activity result
     private static final int REQUEST_CODE = 80085;
@@ -65,8 +62,7 @@ public class MainActivity extends Activity implements
         // Recycler
         trackRecyclerView = (RecyclerView) findViewById(R.id.track_recycler_view);
         trackRecyclerView.setHasFixedSize(true);
-        mLayoutManager = new LinearLayoutManager(this);
-        trackRecyclerView.setLayoutManager(mLayoutManager);
+        trackRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         // Start spotify auth intent
         AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(CLIENT_ID,
@@ -108,7 +104,7 @@ public class MainActivity extends Activity implements
         header.put("Authorization", "Bearer " + mAccessToken);
         JsonObjectRequest request = new JsonObjectRequest(
                 Request.Method.GET,
-                MY_TRACKS_URL,// + "?" + MY_TRACKS_PARAMS, // url
+                MY_TRACKS_URL+"?limit=50",
                 params,
                 json -> {
                     List<SpotifyTrack> tracks = new ArrayList<>();
@@ -116,18 +112,13 @@ public class MainActivity extends Activity implements
                     try {
                         JSONArray songs = json.getJSONArray("items");
                         numSongs = songs.length();
-                        // Get the relevant info for each song
                         for (int i = 0; i < numSongs; i++) {
+                            // Get the json for this song object
                             JSONObject song = songs
                                     .getJSONObject(i)
                                     .getJSONObject("track");
-                            String title = song
-                                    .getString("name");
-                            String artist = song
-                                    .getJSONArray("artists")
-                                    .getJSONObject(0)
-                                    .getString("name");
-                            tracks.add(new SpotifyTrack(title, artist));
+                            // Add the SpotifyTrack object
+                            tracks.add(json2Track(song));
                         }
                     } catch (JSONException e) {
                         Log.e(TAG, "JSON ERROR");
@@ -135,6 +126,7 @@ public class MainActivity extends Activity implements
                         // Set the adapter for the recycler view
                         // using the list of songs in the result
                         mAdapter = new TrackAdapter(
+                                this,
                                 tracks.toArray(new SpotifyTrack[numSongs]));
                         trackRecyclerView.setAdapter(mAdapter);
                     }
@@ -189,5 +181,47 @@ public class MainActivity extends Activity implements
     protected void onDestroy() {
         Spotify.destroyPlayer(this);
         super.onDestroy();
+    }
+
+    @Override
+    public void pauseSong() {
+        mPlayer.pause();
+    }
+
+    @Override
+    public void playSong(String uri) {
+        mPlayer.play(uri);
+    }
+
+    private static SpotifyTrack json2Track(JSONObject song) {
+        SpotifyTrack result = new SpotifyTrack();
+        try {
+            String title = song
+                    .getString("name");
+            JSONObject artistObj = song
+                    .getJSONArray("artists")
+                    .getJSONObject(0);
+            String artist = artistObj
+                    .getString("name");
+            String uri = song
+                    .getString("uri");
+            String imageUrl = song
+                    .getJSONObject("album")
+                    .getJSONArray("images")
+                    .getJSONObject(0)
+                    .getString("url");
+            int popularity = song
+                    .getInt("popularity");
+            result.setTitle(title);
+            result.setArtist(artist);
+            result.setUri(uri);
+            result.setImageURL(imageUrl);
+            result.setPopularity(popularity);
+            return result;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error loading song\n" + e.getMessage());
+            return null;
+        }
+
     }
 }
