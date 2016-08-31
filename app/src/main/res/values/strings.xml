@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">My Spotify</string>
+    <string name="track_pause">pause</string>
+    <string name="track_play">play</string>
 </resources>

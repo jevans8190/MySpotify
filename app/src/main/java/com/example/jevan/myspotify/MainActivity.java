@@ -11,6 +11,7 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
+import com.jakewharton.rxbinding.view.RxView;
 import com.spotify.sdk.android.authentication.AuthenticationClient;
 import com.spotify.sdk.android.authentication.AuthenticationRequest;
 import com.spotify.sdk.android.authentication.AuthenticationResponse;
@@ -32,8 +33,7 @@ import java.util.Map;
 
 public class MainActivity extends Activity implements
         PlayerNotificationCallback,
-        ConnectionStateCallback,
-        TrackAdapter.PlayerCallBack {
+        ConnectionStateCallback {
 
     // Recycler
     private RecyclerView trackRecyclerView;
@@ -63,6 +63,9 @@ public class MainActivity extends Activity implements
         trackRecyclerView = (RecyclerView) findViewById(R.id.track_recycler_view);
         trackRecyclerView.setHasFixedSize(true);
         trackRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        RxView.clicks(trackRecyclerView).subscribe(event -> {
+
+        });
 
         // Start spotify auth intent
         AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(CLIENT_ID,
@@ -98,6 +101,8 @@ public class MainActivity extends Activity implements
                 });
             }
         }
+
+        // Fetch tracks from Spotify API
         RequestQueue requestQueue = Volley.newRequestQueue(this);
         JSONObject params = new JSONObject();
         Map<String, String> header = new HashMap<>();
@@ -127,6 +132,7 @@ public class MainActivity extends Activity implements
                         // using the list of songs in the result
                         mAdapter = new TrackAdapter(
                                 this,
+                                mPlayer,
                                 tracks.toArray(new SpotifyTrack[numSongs]));
                         trackRecyclerView.setAdapter(mAdapter);
                     }
@@ -183,16 +189,6 @@ public class MainActivity extends Activity implements
         super.onDestroy();
     }
 
-    @Override
-    public void pauseSong() {
-        mPlayer.pause();
-    }
-
-    @Override
-    public void playSong(String uri) {
-        mPlayer.play(uri);
-    }
-
     private static SpotifyTrack json2Track(JSONObject song) {
         SpotifyTrack result = new SpotifyTrack();
         try {
@@ -222,6 +218,9 @@ public class MainActivity extends Activity implements
             Log.e(TAG, "Error loading song\n" + e.getMessage());
             return null;
         }
-
     }
+
+    public String getAccessToken() { return mAccessToken; }
+
+    public String getClientId() { return CLIENT_ID; }
 }
