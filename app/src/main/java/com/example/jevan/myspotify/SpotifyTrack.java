@@ -3,6 +3,7 @@ package com.example.jevan.myspotify;
 import android.nfc.Tag;
 import android.util.Log;
 
+import java.io.Serializable;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -11,7 +12,7 @@ import java.net.URL;
  *
  * Created by jack on 8/25/16.
  */
-public class SpotifyTrack {
+public class SpotifyTrack implements Serializable {
     private String title, artist, uri;
     private URL imageURL;
     private int popularity;

@@ -1,8 +1,6 @@
 package com.example.jevan.myspotify;
 
-import android.app.Activity;
-import android.app.admin.SystemUpdatePolicy;
-import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -18,27 +16,20 @@ import com.squareup.picasso.Picasso;
 
 import java.net.URISyntaxException;
 
-import rx.functions.Func0;
-import rx.functions.Func1;
-
 /**
  * Track adapter
  *
  * Created by jack on 8/25/16.
  */
 public class TrackAdapter extends RecyclerView.Adapter<TrackAdapter.ViewHolder> {
-    private Context mContext;
+    // context
+    private MainActivity mContext;
     private SpotifyTrack[] tracks;
-    private PlayerCallBack mPlayerCallBack;
+    private Player mPlayer;
+    // intent
+    private Intent detailIntent;
 
     private static final String TAG = TrackAdapter.class.getSimpleName();
-
-    public interface PlayerCallBack {
-
-        void playSong(String uri);
-
-        void pauseSong();
-    }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         private TextView titleTV, artistTV, popularityTV;
@@ -53,10 +44,12 @@ public class TrackAdapter extends RecyclerView.Adapter<TrackAdapter.ViewHolder> 
         }
     }
 
-    public TrackAdapter(Activity activity, SpotifyTrack[]tracks) {
-        this.mPlayerCallBack = (PlayerCallBack) activity;
+    public TrackAdapter(MainActivity activity, Player player, SpotifyTrack[]tracks) {
+        this.mPlayer = player;
         this.mContext = activity;
         this.tracks = tracks;
+        // intent
+        detailIntent = new Intent(mContext, TrackDetailActivity.class);
     }
 
     @Override
@@ -86,9 +79,15 @@ public class TrackAdapter extends RecyclerView.Adapter<TrackAdapter.ViewHolder> 
             Log.e(TAG, "Error with album image url");
         }
         // on click listener
-        RxView.clicks(holder.itemView).subscribe(
-                v -> mPlayerCallBack.playSong(track.getUri())
-        );
+        RxView.clicks(holder.itemView).subscribe(v -> {
+            // play the song
+            mPlayer.play(track.getUri());
+            // start the detail activity
+            detailIntent.putExtra("track", track);
+            detailIntent.putExtra("access_token", mContext.getAccessToken());
+            detailIntent.putExtra("client_id", mContext.getClientId());
+            mContext.startActivity(detailIntent);
+        });
     }
 
     @Override

@@ -48,4 +48,6 @@ dependencies {
     compile project(':volley-fr')
     // picasso
     compile "com.squareup.picasso:picasso:2.4.0"
+    // retrofit
+    compile "com.squareup.retrofit:retrofit:1.9.+"
 }
