@@ -13,13 +13,17 @@ import java.net.URL;
  * Created by jack on 8/25/16.
  */
 public class SpotifyTrack implements Serializable {
-    private String title, artist, uri;
+    private String id, title, artist, uri;
     private URL imageURL;
     private int popularity;
 
     private static final String TAG = SpotifyTrack.class.getSimpleName();
 
     public SpotifyTrack() {}
+
+    public String getId() {return id;}
+
+    public void setId(String id) {this.id = id;}
 
     public String getTitle() {return title;}
 

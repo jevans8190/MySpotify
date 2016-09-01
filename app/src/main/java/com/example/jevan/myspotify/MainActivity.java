@@ -192,6 +192,8 @@ public class MainActivity extends Activity implements
     private static SpotifyTrack json2Track(JSONObject song) {
         SpotifyTrack result = new SpotifyTrack();
         try {
+            String id = song
+                    .getString("id");
             String title = song
                     .getString("name");
             JSONObject artistObj = song
@@ -208,6 +210,8 @@ public class MainActivity extends Activity implements
                     .getString("url");
             int popularity = song
                     .getInt("popularity");
+            // Add all the attributes to the SpotifyTrack
+            result.setId(id);
             result.setTitle(title);
             result.setArtist(artist);
             result.setUri(uri);

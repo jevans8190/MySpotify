@@ -9,6 +9,7 @@
     tools:context="com.example.jevan.myspotify.TrackDetailActivity">
 
     <ImageView android:id="@+id/track_album_image"
+        tools:ignore="ContentDescription"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="40dp" />
